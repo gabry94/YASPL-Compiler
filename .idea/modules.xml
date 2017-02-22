@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/YASPL - Compiler.iml" filepath="$PROJECT_DIR$/YASPL - Compiler.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/YASPLCompiler.iml" filepath="$PROJECT_DIR$/.idea/modules/YASPLCompiler.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/YASPLCompiler_main.iml" filepath="$PROJECT_DIR$/.idea/modules/YASPLCompiler_main.iml" group="YASPLCompiler" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/YASPLCompiler_test.iml" filepath="$PROJECT_DIR$/.idea/modules/YASPLCompiler_test.iml" group="YASPLCompiler" />
+    </modules>
+  </component>
+</project>

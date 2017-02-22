@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="YASPLCompiler_main:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/YASPLCompiler_main_jar</output-path>
+    <root id="archive" name="YASPLCompiler_main.jar">
+      <element id="module-output" name="YASPLCompiler_main" />
+      <element id="extracted-dir" path="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.scalified/tree/0.2.4/27fd7f1bcfcbddab70b241a97ef7c4e491978324/tree-0.2.4.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/java-cup-11b.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

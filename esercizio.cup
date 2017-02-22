@@ -1,0 +1,373 @@
+package src.it.gabrielelombari.compilatori.base;
+import java_cup.runtime.*;
+import java.util.ArrayList;
+import java.util.Stack;
+import src.it.gabrielelombari.compilatori.visitor.element.VisitableNode;
+import src.it.gabrielelombari.compilatori.visitor.semantic.element.SemanticElement;
+
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    parser(Scanner s, String k){ this.s=s; }
+
+    public VisitableNode<SemanticElement> makeNode(String name, VisitableNode<SemanticElement> ... childrens){
+
+             VisitableNode<SemanticElement> toReturn = new VisitableNode<>(new SemanticElement(name));
+
+             for(int i = 0; i < childrens.length; i ++){
+                 toReturn.add(childrens[i]);
+             }
+
+             return toReturn;
+         }
+
+    public VisitableNode<SemanticElement> makeNode(String name, ArrayList<VisitableNode<SemanticElement>> childrens){
+
+            VisitableNode<SemanticElement> toReturn = new VisitableNode<>(new SemanticElement(name));
+
+            for(int i = 0; i < childrens.size(); i ++){
+                toReturn.add(childrens.get(i));
+            }
+
+            return toReturn;
+        }
+
+    public void syntax_error(Symbol s){
+        System.out.println(String.format("An error occurred at line %d and column %d", s.left + 1, s.right + 1));
+    }
+:}
+
+/* define how to connect to the scanner! */
+init with {:/* s.init();*/ :};
+scan with {: return s.next_token(); :};
+
+
+/* Terminals (tokens returned by the scanner). */
+terminal   String   LPAR, RPAR, MINUS, UMINUS,
+                    PROGRAM, IDENTIFIER, INSTRUCTION_SEPARATOR, END_PROGRAM, VAR, PROCEDURE,
+                    INTEGER, BOOLEAN, BEGIN, WRITE, READ, IF, THEN, WHILE, DO, END, ASSIGN,
+                    RELOP, ADD_OPERATOR, MULT_OPERATOR, NOT, TRUE, FALSE, SEPARATOR, ELSE,
+                    INTEGER_CONSTANT, STRING_CONSTANT, CHARACTER_CONSTANT;
+
+/* Non terminals */
+non terminal  VisitableNode<SemanticElement>     program_n, block, variable_declaration_part, statement_part,
+                                   procedure_declaration, simple_block, compound_statement, statement,
+                                   simple_statement, structured_statement, assignment_statement, read_statement, procedure_statement, expression ,
+                                   output_value ,if_statement ,while_statement ,simple_expression, write_statement,
+                                   variable_declaration;
+
+non terminal String    constant_identifier, constant, variable_identifier, variable, adding_operator, procedure_identifier, simple_type, input_variable;
+
+non terminal           ArrayList<VisitableNode<SemanticElement>> statements, output_values, read_variables, identifiers, variables, procedure_declaration_part;
+
+
+/* Precedences */
+precedence left ADD_OPERATOR, MINUS;
+precedence left MULT_OPERATOR;
+precedence left ASSIGN, READ, WRITE;
+precedence left ELSE;
+precedence left RELOP;
+precedence left UMINUS;
+
+start with program_n;
+
+program_n ::= PROGRAM IDENTIFIER:id INSTRUCTION_SEPARATOR block:blk END_PROGRAM
+                                        {:
+                                            RESULT = makeNode(NodeConstants.PROG_NODE, makeNode(NodeConstants.ID_NODE, makeNode(id)), blk);
+
+                                            src.it.gabrielelombari.compilatori.visitor.syntactic.Visitor visitor = new src.it.gabrielelombari.compilatori.visitor.syntactic.Visitor();
+                                            RESULT.accept(visitor);
+                                            visitor.toFile();
+
+                                            src.it.gabrielelombari.compilatori.visitor.semantic.Visitor visitor1 = new src.it.gabrielelombari.compilatori.visitor.semantic.Visitor(new Stack<>());
+                                            RESULT.accept(visitor1);
+                                            src.it.gabrielelombari.compilatori.visitor.translate.Visitor visitor2 = new src.it.gabrielelombari.compilatori.visitor.translate.Visitor();
+
+                                            System.out.println(RESULT.accept(visitor2));
+                                            visitor2.toFile()
+                                            System.out.println("Analisi Sintattica completata con successo!");
+                                        :}
+                                        | error {:System.out.println("No syntax tree generated");:}
+;
+
+block ::= variable_declaration_part:ptr1 procedure_declaration_part:ptr2 statement_part:ptr3
+                                        {:
+                                            VisitableNode<SemanticElement> proc_ptr = makeNode(NodeConstants.PROC_DECL_PART_OP, ptr2);
+                                            RESULT = makeNode(NodeConstants.BLOCK, ptr1, proc_ptr, ptr3);
+                                        :}
+;
+
+variable_declaration_part ::= VAR variable_declaration:ptr1 INSTRUCTION_SEPARATOR variables:ptrs
+                                        {:
+                                            if(ptrs != null){
+                                                ptrs.add(0, ptr1);
+                                                RESULT = makeNode(NodeConstants.VAR_DECL_PART, ptrs);
+                                            }
+                                            else RESULT = makeNode(NodeConstants.VAR_DECL_PART, ptr1);
+
+                                        :}
+                                        | /* epsilon */
+;
+
+variables ::= variable_declaration:ptr1 INSTRUCTION_SEPARATOR variables:ptrs
+                                        {:
+                                           RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+
+                                           RESULT.add(ptr1);
+                                           if(ptrs != null)
+                                            RESULT.addAll(ptrs);
+                                        :}
+                                    | /* epsilon */
+;
+
+variable_declaration ::= IDENTIFIER:id identifiers:ids simple_type:type
+                                        {:
+                                            if( ids != null){
+
+                                            VisitableNode<SemanticElement> idNode = makeNode(id);
+                                            idNode.data().setCanBeAdded(true);
+
+                                            ids.add(0, makeNode(NodeConstants.ID_NODE, idNode));
+                                            ids.add(0, makeNode(type));
+                                            RESULT = makeNode(NodeConstants.VAR_DECL_OP ,ids);
+                                            } else{
+                                            VisitableNode<SemanticElement> idNode = makeNode(id);
+                                            idNode.data().setCanBeAdded(true);
+                                            RESULT = makeNode(NodeConstants.VAR_DECL_OP ,makeNode(type), makeNode(NodeConstants.ID_NODE, idNode));
+                                            }
+                                        :}
+;
+
+identifiers ::= SEPARATOR IDENTIFIER:id identifiers:ids
+                                        {:
+                                            VisitableNode<SemanticElement> idNode = makeNode(id);
+                                            idNode.data().setCanBeAdded(true);
+                                            RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+                                            RESULT.add(makeNode(NodeConstants.ID_NODE, idNode));
+
+                                            if(ids != null)
+                                                RESULT.addAll(ids);
+                                        :}
+                                        |/* epsilon */
+;
+
+simple_type ::= INTEGER {:RESULT = Constants.INTEGER;:} | BOOLEAN {:RESULT = Constants.BOOLEAN;:}
+;
+
+procedure_declaration_part ::= procedure_declaration:ptr1 INSTRUCTION_SEPARATOR procedure_declaration_part:ptr2
+                                        {:
+                                            RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+
+                                            RESULT.add(ptr1);
+                                            if(ptr2 != null)
+                                            RESULT.addAll(ptr2);
+                                        :}
+                                        | /* epsilon */
+;
+
+procedure_declaration ::= PROCEDURE IDENTIFIER:id INSTRUCTION_SEPARATOR simple_block:ptr1
+                                        {:
+                                            VisitableNode<SemanticElement> idNode = makeNode(id);
+                                            idNode.data().setCanBeAdded(true);
+
+                                            RESULT = makeNode(NodeConstants.PROC_DECL_OP, makeNode(NodeConstants.ID_NODE, idNode), ptr1);
+                                        :}
+;
+
+simple_block ::= variable_declaration_part:ptr1 statement_part:ptr2 {: RESULT = makeNode(NodeConstants.SIMPLE_BLOCK_OP, ptr1, ptr2);  :}
+;
+
+statement_part ::= compound_statement:ptr1 {:RESULT = ptr1;:}
+;
+
+compound_statement ::= BEGIN statement:ptr_st statements:ptr_sts END
+                                        {:
+                                            if(ptr_sts != null){
+                                                ((ArrayList<VisitableNode<SemanticElement>>)ptr_sts).add(0, ptr_st);
+                                                RESULT = makeNode(NodeConstants.COMP_ST_OP, ptr_sts);
+                                            } else  RESULT = makeNode(NodeConstants.COMP_ST_OP, ptr_st);
+                                        :}
+;
+
+statements ::= INSTRUCTION_SEPARATOR statement:ptr1 statements:ptr2
+                                        {:
+                                            RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+
+                                            if(ptr2 != null)
+                                             RESULT.addAll(ptr2);
+                                            RESULT.add(0, ptr1);
+                                        :}
+                    |/* epsilon */
+;
+
+statement ::=  simple_statement:ptr           {:RESULT = ptr;:}
+                | structured_statement:ptr    {:RESULT = ptr;:}
+;
+
+simple_statement ::=  assignment_statement:ptr      {:RESULT = ptr;:}
+                    | read_statement:ptr            {:RESULT = ptr;:}
+                    | procedure_statement:ptr       {:RESULT = ptr;:}
+                    | write_statement:ptr           {:RESULT = ptr;:}
+;
+
+assignment_statement ::= variable:value ASSIGN expression:expr
+                                        {:
+                                            VisitableNode<SemanticElement> id_node = makeNode(NodeConstants.ID_NODE, makeNode(value));
+                                            RESULT = makeNode(NodeConstants.ASSIGN_OP, id_node, expr);
+                                        :}
+;
+
+
+read_statement ::= READ LPAR input_variable:ptr_st read_variables:ptr_sts RPAR
+                                        {:
+                                            if(ptr_sts != null){
+                                            ((ArrayList<VisitableNode<SemanticElement>>)ptr_sts).add(0, makeNode(NodeConstants.ID_NODE, makeNode(ptr_st)));
+                                            RESULT = makeNode(NodeConstants.READ_NODE, ptr_sts);
+                                            }else RESULT = makeNode(NodeConstants.READ_NODE, makeNode(NodeConstants.ID_NODE, makeNode(ptr_st)));
+                                        :}
+;
+
+read_variables ::= SEPARATOR input_variable:ptr1 read_variables:ptr2
+                                        {:
+                                            RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+
+                                            if(ptr2 !=  null)
+                                                RESULT.addAll(ptr2);
+
+                                            RESULT.add(0, makeNode(NodeConstants.ID_NODE, makeNode(ptr1)));
+                                        :}
+                | /* empty */
+;
+
+input_variable ::= variable:ptr1
+                                        {:
+                                            RESULT = ptr1;
+                                        :}
+;
+
+procedure_statement ::= procedure_identifier:id
+                                        {:
+                                            VisitableNode<SemanticElement> id_node = makeNode(NodeConstants.ID_NODE, makeNode(id));
+                                            RESULT = makeNode(NodeConstants.CALL_OP, id_node);
+                                        :}
+;
+
+procedure_identifier ::= IDENTIFIER:id {:RESULT = id;:}
+;
+
+
+write_statement ::= WRITE LPAR output_value:ptr_st output_values:ptr_sts RPAR
+                                        {:
+                                        if(ptr_sts != null) {
+
+                                            ptr_sts.add(0, ptr_st);
+                                            RESULT = makeNode(NodeConstants.WRITE_NODE, ptr_sts);
+                                        }else RESULT = makeNode(NodeConstants.WRITE_NODE, ptr_st);
+                                        :}
+;
+
+output_values ::= SEPARATOR output_value:ptr1 output_values:ptr2
+                                        {:
+                                            RESULT = new ArrayList<VisitableNode<SemanticElement>>();
+
+                                            if(ptr2 != null)
+                                             RESULT.addAll(ptr2);
+                                            RESULT.add(0, ptr1);
+                                        :}
+                    | /* epsilon */
+;
+
+output_value ::= expression:ptr1
+                                        {:
+                                            RESULT = ptr1;
+                                        :}
+;
+
+structured_statement ::= compound_statement:cmp_st
+                                        {:
+                                            RESULT = cmp_st;
+                                        :}
+                        | if_statement:if_st
+                                        {:
+                                            RESULT = if_st;
+                                        :}
+                        | while_statement:while_st
+                                        {:
+                                            RESULT = while_st;
+                                        :}
+;
+
+if_statement ::= IF expression:expr1 THEN  statement:st_1
+                                        {:
+                                            RESULT = makeNode(NodeConstants.IF_OP, expr1, st_1);
+                                        :}
+                 | IF expression:expr1 THEN statement:st_1 ELSE statement:st_2
+                                         {:
+                                            RESULT = makeNode(NodeConstants.IF_OP_ESLE, expr1, st_1, st_2);
+                                         :}
+                                            %prec ELSE
+;
+
+while_statement ::= WHILE expression:expr1 DO statement:sm_ptr1 INSTRUCTION_SEPARATOR
+                                            {:
+                                                RESULT = makeNode(NodeConstants.WHILE_OP, expr1, sm_ptr1);
+                                            :}
+;
+
+expression ::= simple_expression:sm_ptr1
+                                            {:
+                                                  RESULT = makeNode(NodeConstants.SIMPLE_OP, sm_ptr1);
+                                            :}
+                | simple_expression:sm_ptr1 RELOP:op simple_expression:sm_ptr2
+                                            {:
+                                                  VisitableNode<SemanticElement> expr_node = makeNode(NodeConstants.RELOP_OPERATOR, makeNode(op));
+                                                  RESULT = makeNode(NodeConstants.RELOP_OP, expr_node, sm_ptr1, sm_ptr2);
+                                            :}
+;
+
+simple_expression ::= simple_expression:sm_ptr1 adding_operator:op simple_expression:sm_ptr2
+                                           {:
+                                                 VisitableNode<SemanticElement> add_node = makeNode(NodeConstants.ADD_OPERATOR, makeNode(op));
+                                                 RESULT = makeNode(NodeConstants.ADD_OP, add_node, sm_ptr1, sm_ptr2);
+                                           :}
+                        | simple_expression:sm_ptr1 MULT_OPERATOR:op simple_expression:sm_ptr2
+                                           {:
+                                                 VisitableNode<SemanticElement> mul_node = makeNode(NodeConstants.MUL_OPERATOR, makeNode(op));
+                                                 RESULT = makeNode(NodeConstants.MUL_OP, mul_node, sm_ptr1, sm_ptr2);
+                                           :}
+                        | variable:value
+                                           {:
+                                                 VisitableNode<SemanticElement> id_node = makeNode(NodeConstants.ID_NODE, makeNode(value));
+                                                 RESULT = makeNode(NodeConstants.VAR_OP_NODE, id_node);
+                                           :}
+                        | constant:value
+                                            {:
+                                                /*   POSSIBILE NULL   */
+                                                VisitableNode<SemanticElement> constant = makeNode(NodeConstants.CONST_NODE, makeNode(value));
+                                                RESULT = makeNode(NodeConstants.CONST_OP_NODE, constant);
+                                            :}
+                        | LPAR expression:expr RPAR    {: RESULT = makeNode(NodeConstants.EXPR_NODE, expr);:} /*   POSSIBILE NULL   */
+                        | NOT expression:expr          {: RESULT = makeNode(NodeConstants.NOT_NODE, expr);:}
+                        | MINUS simple_expression:semanticElement {: RESULT = makeNode(NodeConstants.UNARY_MINUS_NODE, semanticElement); :} %prec UMINUS
+;
+
+adding_operator ::= ADD_OPERATOR:v {:RESULT = v;:}
+                    | MINUS {:RESULT = "-";:}
+;
+
+variable ::= variable_identifier:v {:RESULT = v;:}
+;
+
+variable_identifier ::= IDENTIFIER:v {:RESULT = v;:}
+;
+
+constant ::= INTEGER_CONSTANT:v {:RESULT = v;:}
+             | CHARACTER_CONSTANT:v {:RESULT = v;:}
+             | STRING_CONSTANT:v {:RESULT = v;:}
+             | constant_identifier:value {:RESULT = value;:}
+;
+
+constant_identifier ::= TRUE  {:RESULT = "true";:}
+                      | FALSE {:RESULT = "false";:}
+;
+

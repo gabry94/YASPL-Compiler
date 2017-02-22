@@ -1,6 +1,6 @@
 # YASPL-Compiler
 
-Compiler front-end for YASPL, language made for Compiler class at University of Salerno.
+Compiler's front-end for YASPL, programming language made for Compiler class at University of Salerno.
 
 A code example is reported above:
 
